@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>業績狀況</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h2>導航</h2>
+        <div id="pageSelection">
+            <input type="radio" id="orderOverview" name="page" value="訂單總覽" >
+            <label for="orderOverview">訂單總覽</label>
+            <input type="radio" id="performanceStatus" name="page" value="業績狀況" checked>
+            <label for="performanceStatus">業績狀況</label>
+        </div>
+
+        <!-- 日期篩選、訂單狀態篩選等其他內容 -->
+    </div>
+
+    <div id="mainContent">
+        <h1>開發中...</h1>
+        <!-- 其他「業績狀況」的主要內容 -->
+    </div>
+
+    <script>
+        // Add this to your existing JavaScript file or in a new <script> tag
+        document.addEventListener('DOMContentLoaded', function() {
+            const pageSelection = document.getElementById('pageSelection');
+            
+            pageSelection.addEventListener('change', function(event) {
+                if (event.target.value === '業績狀況') {
+                    // Navigate to the performance status page
+                    window.location.href = 'performance-status.html';
+                } else if (event.target.value === '訂單總覽') {
+                    // Stay on the current page or reload if necessary
+                    window.location.href = 'index.html';
+                }
+            });
+        });
+        </script>
+</body>
+</html>

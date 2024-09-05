@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>彰化店訂單收款情況追蹤</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="https://telegraph-image-55i.pages.dev/file/5a5c13ce95f64f824c531.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Tracking Order">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="assets/img/png" href="assets/img/POPO.png">
+</head>
+<body>
+    <div id="sidebar">
+        <h2>導航</h2>
+        <div id="pageSelection">
+            <input type="radio" id="orderOverview" name="page" value="訂單總覽" checked>
+            <label for="orderOverview">訂單總覽</label>
+            <input type="radio" id="performanceStatus" name="page" value="業績狀況">
+            <label for="performanceStatus">業績狀況</label>
+        </div>
+
+        <h3>日期篩選</h3>
+        <div id="dateSelection">
+            <input type="radio" id="singleDate" name="dateType" value="單日" checked>
+            <label for="singleDate">單日</label>
+            <input type="radio" id="dateRange" name="dateType" value="日期範圍">
+            <label for="dateRange">日期範圍</label>
+        </div>
+
+        <div id="datePickers">
+            <input type="date" id="selectedDate">
+            <input type="date" id="startDate" style="display:none;">
+            <input type="date" id="endDate" style="display:none;">
+        </div>
+
+        <h3>訂單狀態篩選</h3>
+        <div id="orderStatusSelection">
+            <input type="radio" id="allOrders" name="orderStatus" value="全部訂單" checked>
+            <label for="allOrders">全部訂單</label>
+            <input type="radio" id="unpaidOrders" name="orderStatus" value="只顯示未結清訂單">
+            <label for="unpaidOrders">只顯示未結清訂單</label>
+            <input type="radio" id="paidOrders" name="orderStatus" value="只顯示結清訂單">
+            <label for="paidOrders">只顯示結清訂單</label>
+            <input type="radio" id="refundedOrders" name="orderStatus" value="只顯示有退費訂單">
+            <label for="refundedOrders">只顯示有退費訂單</label>
+        </div>
+
+        <button id="reloadData">重新加載數據</button>
+    </div>
+
+    <div id="mainContent">
+        <h1>彰化店訂單收款情況追蹤</h1>
+        <h2 id="dateHeader"></h2>
+        
+        <div id="totalMetrics">
+            <div class="metric">
+                <h3><i class="fas fa-money-bill-wave"></i>&nbsp;現金總額</h3>
+                <p id="totalCash"></p>
+            </div>
+            <div class="metric">
+                <h3><i class="fas fa-university"></i>&nbsp;匯款總額</h3>
+                <p id="totalTransfer"></p>
+            </div>
+            <div class="metric">
+                <h3><i class="fas fa-file-invoice-dollar"></i>&nbsp;支票總額</h3>
+                <p id="totalCheque"></p>
+            </div>
+            <div class="metric">
+                <h3 id="totalAmountTitle"><i class="fas fa-undo"></i>&nbsp;退費筆數 / 總額</h3>
+                <p id="totalRefundAmount"></p>
+            </div>
+            <div class="metric">
+                <h3 id="totalAmountTitle"><i class="fas fa-coins"></i>&nbsp;總收入</h3>
+                <p id="totalAmount"></p>
+            </div>
+
+
+        <div id="colorLegend"></div>
+
+        <div id="orderList"></div>
+    </div>
+    <div id="passwordModal" class="modal">
+        <div class="modal-content">
+            <h2>請輸入密碼</h2>
+            <input type="password" id="passwordInput" placeholder="請輸入密碼">
+            <button id="submitPassword">提交</button>
+        </div>
+    </div>
+
+    <script src="js/script.js"></script>
+
+</body>
+</html>
