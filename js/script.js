@@ -434,11 +434,15 @@ function showOrderDetails(orderId) {
         order.payments.forEach(payment => {
             const tr = document.createElement('tr');
             const confirmedMark = payment.confirmedWithCode ? '<span style="color: red; font-weight: bold;" title="此付款已通過確認碼驗證"> <i class="fas fa-exclamation-circle"></i> 過期入帳</span>' : '';
+            let methodDisplay = paymentMethodsChinese[payment.method] || payment.method;
+            if (payment.method === 'transfer' && payment.accountNumber) {
+                methodDisplay += `: ${payment.accountNumber}`;
+            }
             tr.innerHTML = `
                 <td>${paymentTypesChinese[payment.type] || payment.type}</td>
                 <td>$${Math.abs(payment.amount).toLocaleString()} ${confirmedMark}</td>
                 <td>${payment.timestamp.substr(0, 10)}</td>
-                <td>${paymentMethodsChinese[payment.method] || payment.method}</td>
+                <td>${methodDisplay}</td>
             `;
             paymentDetailsTable.appendChild(tr);
         });
@@ -456,17 +460,23 @@ function showOrderDetails(orderId) {
                 
                 const confirmedMark = confirmedWithCode ? '<span style="color: red; font-weight: bold;" title="此付款已通過確認碼驗證"> <i class="fas fa-exclamation-circle"></i> 過期入賬</span>' : '';
                 
+                let methodDisplay = method || '';
+                if (method === '匯款' && order[`${pt}_accountNumber`]) {
+                    methodDisplay += `: ${order[`${pt}_accountNumber`]}`;
+                }
+                
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>${paymentTypesChinese[pt]}</td>
                     <td>$${Math.abs(paymentAmount).toLocaleString()} ${confirmedMark}</td>
                     <td>${date || ''}</td>
-                    <td>${method || ''}</td>
+                    <td>${methodDisplay}</td>
                 `;
                 paymentDetailsTable.appendChild(tr);
             }
         });
     }
+
 
     if (!hasPayments) {
         const tr = document.createElement('tr');
@@ -880,6 +890,213 @@ async function init() {
             });
         }
         window.confirmedPaymentsChecked = true;
+    }
+}
+
+let isDetailedView = false;
+const toggleViewBtn = document.getElementById('toggleViewBtn');
+
+function toggleView() {
+    isDetailedView = !isDetailedView;
+    updateData();
+    toggleViewBtn.textContent = isDetailedView ? "切換為總覽顯示" : "切換為結帳檢視";
+}
+
+toggleViewBtn.addEventListener('click', toggleView);
+
+function updateDatePickers() {
+    const dateType = document.querySelector('input[name="dateType"]:checked').value;
+    if (dateType === '單日') {
+        selectedDateInput.style.display = 'block';
+        startDateInput.style.display = 'none';
+        endDateInput.style.display = 'none';
+        toggleViewBtn.style.display = 'inline-block'; // 顯示切換按鈕
+    } else {
+        selectedDateInput.style.display = 'none';
+        startDateInput.style.display = 'block';
+        endDateInput.style.display = 'block';
+        toggleViewBtn.style.display = 'none'; // 隱藏切換按鈕
+    }
+    updateData();
+}
+
+async function updateData() {
+    if (firestoreData.length > 0) {
+        const dateType = document.querySelector('input[name="dateType"]:checked').value;
+        if (dateType === '單日' && isDetailedView) {
+            await updateDailySummary();
+        } else {
+            processData();
+        }
+    } else {
+        fetchFirestoreData();
+    }
+}
+
+async function updateDailySummary() {
+    const selectedDate = document.getElementById('selectedDate').value;
+    if (!selectedDate) {
+        alert('請選擇日期');
+        return;
+    }
+
+    const orderList = document.getElementById('orderList');
+    orderList.innerHTML = '載入中...';
+
+    try {
+        const date = new Date(selectedDate);
+        const startOfDay = new Date(date.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(startOfDay);
+        endOfDay.setDate(startOfDay.getDate() + 1);
+
+        // 查詢所有訂單
+        const querySnapshot = await db.collection("calculations").get();
+        const pettyCashQuerySnapshot = await db.collection('pettyCash').where('date', '==', selectedDate).get();
+
+        let cashTotal = 0;
+        let transferTotal = 0;
+        let chequeTotal = 0;
+        let refundTotal = 0;
+        let pettyCashTotal = 0;
+
+        // 存儲付款明細
+        let paymentDetails = [];
+
+        // 付款類型對應中文
+        const paymentTypesChinese = {
+            'deposit': '訂金',
+            'firstPayment': '頭款',
+            'finalPayment': '尾款',
+            'renewalFinalPayment': '續訂尾款',
+            'refundtoUser': '退費'
+        };
+
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            const payments = data.payments || [];
+            const fileNumber = data.fileNumber || '';
+            const cabinetNumberResidential = data.cabinetNumberResidential || '';
+            const cabinetNumberHospital = data.cabinetNumberHospital || '';
+            const userName = data.userName || '未知';
+            const note2 = data.note2 || '';
+            const uniqueId = doc.id;
+
+            payments.forEach((payment) => {
+                const paymentDate = payment.timestamp instanceof firebase.firestore.Timestamp
+                    ? payment.timestamp.toDate()
+                    : new Date(payment.timestamp);
+
+                if (paymentDate >= startOfDay && paymentDate < endOfDay) {
+                    if (payment.method === 'pending') {
+                        return;
+                    }
+
+                    paymentDetails.push({
+                        uniqueId,
+                        fileNumber,
+                        cabinetNumberResidential,
+                        cabinetNumberHospital,
+                        userName,
+                        type: payment.type,
+                        method: payment.method,
+                        amount: payment.amount,
+                        note: payment.type === 'deposit' ? note2 : '',
+                        accountNumber: payment.accountNumber || '未知',
+                        confirmedWithCode: payment.confirmedWithCode || false
+                    });
+
+                    if (payment.type === 'refundtoUser') {
+                        refundTotal += payment.amount;
+                    } else {
+                        if (payment.method === 'cash') {
+                            cashTotal += payment.amount;
+                        } else if (payment.method === 'transfer') {
+                            transferTotal += payment.amount;
+                        } else if (payment.method === 'cheque') {
+                            chequeTotal += payment.amount;
+                        }
+                    }
+                }
+            });
+        });
+
+        // 計算當天的零用金
+        pettyCashQuerySnapshot.forEach((doc) => {
+            const data = doc.data();
+            pettyCashTotal += data.amount;
+        });
+
+        // 生成訂單表格
+        let orderTableHtml = `
+            <table id="orderTable">
+                <thead>
+                    <tr>
+                        <th>訂單編號</th>
+                        <th>客戶名稱</th>
+                        <th>付款類型</th>
+                        <th>付款方式</th>
+                        <th>金額</th>
+                        <th>詳情</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        paymentDetails.forEach((detail, index) => {
+            const paymentType = paymentTypesChinese[detail.type] || detail.type;
+            let paymentMethod = '';
+            if (detail.method === 'cash') {
+                paymentMethod = '現金';
+            } else if (detail.method === 'transfer') {
+                paymentMethod = `匯款 : ${detail.accountNumber}`;
+            } else if (detail.method === 'cheque') {
+                paymentMethod = '支票';
+            } else {
+                paymentMethod = detail.method;
+            }
+            
+            let statusClass = '';
+            if (detail.type === 'refundtoUser') {
+                statusClass = 'status-overpaid';
+            } else if (detail.type === 'deposit') {
+                statusClass = 'status-deposit';
+            }
+
+            let amountDisplay = `$${Math.abs(detail.amount).toLocaleString()}`;
+            if (detail.confirmedWithCode) {
+                amountDisplay += ' <i class="fas fa-exclamation-circle" style="color: #FF9800;" title="過期入帳"></i>';
+            }
+
+            orderTableHtml += `
+                <tr class="${statusClass}">
+                    <td>${detail.fileNumber}</td>
+                    <td>${detail.userName}</td>
+                    <td>${paymentType}</td>
+                    <td>${paymentMethod}</td>
+                    <td>${amountDisplay}</td>
+                    <td><button class="details-btn" onclick="showOrderDetails('${detail.uniqueId}')">詳情</button></td>
+                </tr>
+            `;
+        });
+
+        orderTableHtml += `
+                </tbody>
+            </table>
+        `;
+
+        // 更新總計顯示
+        document.getElementById('totalCash').textContent = `$${cashTotal.toLocaleString()}`;
+        document.getElementById('totalTransfer').textContent = `$${transferTotal.toLocaleString()}`;
+        document.getElementById('totalCheque').textContent = `$${chequeTotal.toLocaleString()}`;
+        document.getElementById('totalRefundAmount').textContent = `${paymentDetails.filter(d => d.type === 'refundtoUser').length}筆 / $${Math.abs(refundTotal).toLocaleString()}`;
+        document.getElementById('totalAmount').textContent = `$${(cashTotal + transferTotal + chequeTotal - Math.abs(refundTotal) + pettyCashTotal).toLocaleString()}`;
+
+        // 顯示訂單表格
+        orderList.innerHTML = orderTableHtml;
+
+    } catch (error) {
+        console.error("Error updating daily summary:", error);
+        orderList.innerHTML = '<p class="error">更新數據時出錯。請稍後再試。</p>';
     }
 }
 
