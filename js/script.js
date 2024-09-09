@@ -717,7 +717,8 @@ function showNotification(payment) {
     const paymentMethodChinese = {
         'cash': '現金',
         'transfer': '匯款',
-        'cheque': '支票'
+        'cheque': '支票',
+        'pending': '未付款'
     };
     const formattedMethod = paymentMethodChinese[payment.paymentMethod] || payment.paymentMethod || '未知';
 
@@ -760,12 +761,6 @@ function showNotification(payment) {
                         <th>支付類型</th>
                         <td>${formattedType}</td>
                     </tr>
-                    ${payment.mealType ? `
-                    <tr>
-                        <th>餐點類型</th>
-                        <td>${payment.mealType}</td>
-                    </tr>
-                    ` : ''}
                     ${payment.accountNumber ? `
                     <tr>
                         <th>帳號</th>
@@ -1057,7 +1052,7 @@ async function updateDailySummary() {
             
             let statusClass = '';
             if (detail.type === 'refundtoUser') {
-                statusClass = 'status-overpaid';
+                statusClass = 'status-refundtoUser';
             } else if (detail.type === 'deposit') {
                 statusClass = 'status-deposit';
             }

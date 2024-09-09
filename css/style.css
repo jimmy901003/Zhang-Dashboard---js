@@ -374,7 +374,11 @@ body {
 
 .status-overpaid {
     color: #C62828;
-    background-color: #FFCDD2
+}
+
+.status-refundtoUser {
+    color: #C62828;
+    background-color: #FFCDD2 !important;
 }
 
 .status-deposit {
