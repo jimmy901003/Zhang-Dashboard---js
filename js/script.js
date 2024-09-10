@@ -261,6 +261,8 @@ function updateTotalMetrics(data) {
     
     const totalAll = totalCash + totalTransfer + totalCheque - totalRefundAmount;
     
+    
+
     document.getElementById('totalCash').textContent = `$${totalCash.toLocaleString()}`;
     document.getElementById('totalTransfer').textContent = `$${totalTransfer.toLocaleString()}`;
     document.getElementById('totalCheque').textContent = `$${totalCheque.toLocaleString()}`;
@@ -276,7 +278,7 @@ function renderOrderList(data) {
     table.innerHTML = `
         <thead>
             <tr>
-                <th>訂單編號</th>
+                <th>檔案編號</th>
                 <th>客戶名稱</th>
                 <th>當前餐費</th>
                 <th>已支付金額</th>
@@ -368,7 +370,7 @@ function showOrderDetails(orderId) {
             <h3>訂單詳情</h3>
             <table class="details-table">
                 <tr>
-                    <th>訂單編號</th>
+                    <th>檔案編號</th>
                     <td>${order.fileNumber || '無編號'}</td>
                     <th>客戶名稱</th>
                     <td>${order.userName}</td>
@@ -677,12 +679,16 @@ async function checkForConfirmedPayments() {
             const data = doc.data();
             if (data.payments && Array.isArray(data.payments)) {
                 data.payments.forEach((payment, index) => {
-                    if (payment.confirmedWithCode === true && !payment.notificationShown) {
+                    if (payment.confirmedWithCode === true && 
+                        !payment.notificationShown && 
+                        payment.method !== 'pending') {  // 新增條件：排除未付款
                         confirmedPayments.push({
                             id: doc.id,
-                            paymentIndex: index, // 添加付款在數組中的索引
+                            paymentIndex: index,
                             userName: data.userName,
                             fileNumber: data.fileNumber,
+                            cabinetNumberResidential: data.cabinetNumberResidential,
+                            cabinetNumberHospital: data.cabinetNumberHospital,
                             paymentDate: payment.timestamp,
                             paymentAmount: payment.amount,
                             paymentMethod: payment.method,
@@ -1021,12 +1027,24 @@ async function updateDailySummary() {
             pettyCashTotal += data.amount;
         });
 
+        // 排序付款明細
+        paymentDetails.sort((a, b) => {
+            // 首先按照付款方式排序：現金 > 匯款 > 其他
+            const methodOrder = { 'cash': 0, 'transfer': 1 };
+            const methodDiff = (methodOrder[a.method] || 2) - (methodOrder[b.method] || 2);
+            if (methodDiff !== 0) return methodDiff;
+
+            // 然後按照付款類型排序：訂金 > 退費 > 其他
+            const typeOrder = { 'deposit': 0, 'refundtoUser': 1 };
+            return (typeOrder[a.type] || 2) - (typeOrder[b.type] || 2);
+        });
+
         // 生成訂單表格
         let orderTableHtml = `
             <table id="orderTable">
                 <thead>
                     <tr>
-                        <th>訂單編號</th>
+                        <th>檔案編號</th>
                         <th>客戶名稱</th>
                         <th>付款類型</th>
                         <th>付款方式</th>
@@ -1077,6 +1095,9 @@ async function updateDailySummary() {
         orderTableHtml += `
                 </tbody>
             </table>
+            <button id="exportToExcel" class="btn btn-success">
+                <i class="fas fa-file-excel"></i> 輸出excel
+            </button>
         `;
 
         // 更新總計顯示
@@ -1093,6 +1114,109 @@ async function updateDailySummary() {
         console.error("Error updating daily summary:", error);
         orderList.innerHTML = '<p class="error">更新數據時出錯。請稍後再試。</p>';
     }
+    // 在 updateDailySummary 函數的末尾添加
+    document.getElementById('exportToExcel').style.display = 'inline-block';
+}
+
+// 使用事件委託來處理導出按鈕的點擊
+document.addEventListener('click', function(event) {
+    if (event.target && event.target.id === 'exportToExcel') {
+        exportToExcel();
+    }
+});
+
+async function exportToExcel() {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Daily Summary');
+
+    const selectedDate = document.getElementById('selectedDate').value;
+
+    const headerData = [
+        ['日期', selectedDate],
+        ['現金總額', document.getElementById('totalCash').textContent],
+        ['匯款總額', document.getElementById('totalTransfer').textContent],
+        ['支票總額', document.getElementById('totalCheque').textContent],
+        ['退費總額', document.getElementById('totalRefundAmount').textContent],
+        ['總收入', document.getElementById('totalAmount').textContent],
+        [],
+        ['訂單詳情'],
+        ['檔案編號', '客戶名稱', '付款類型', '付款方式', '金額']
+    ];
+
+    worksheet.addRows(headerData);
+
+    const orderTable = document.getElementById('orderTable');
+    if (orderTable) {
+        const rows = orderTable.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            worksheet.addRow([
+                cells[0].textContent,
+                cells[1].textContent,
+                cells[2].textContent,
+                cells[3].textContent,
+                cells[4].textContent
+            ]);
+        });
+    }
+
+    worksheet.columns = [
+        { width: 17 }, { width: 17 }, { width: 17 }, { width: 17 }, { width: 17 }
+    ];
+
+    const borderStyle = {
+        top: {style:'thin'},
+        left: {style:'thin'},
+        bottom: {style:'thin'},
+        right: {style:'thin'}
+    };
+
+    worksheet.eachRow((row, rowNumber) => {
+        row.eachCell((cell) => {
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            
+            // 為前六行設置更大的字體
+            if (rowNumber <= 6) {
+                cell.font = { size: 16 };
+            }
+            // 對第8行和第9行使用粗體，字體大小為12
+            else if (rowNumber === 8 || rowNumber === 9) {
+                cell.font = { bold: true, size: 14 };
+            }
+            // 其他所有行使用12號字體
+            else {
+                cell.font = { size: 14 };
+            }
+
+            // 為第9行（標題行）添加灰色背景和框線
+            if (rowNumber === 9) {
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFD3D3D3' }  // 淺灰色
+                };
+                cell.border = borderStyle;
+            }
+        });
+    });
+
+    worksheet.mergeCells('A8:E8');
+
+    // 為所有數據行添加框線
+    const dataRowStart = 10;  // 數據從第10行開始
+    const lastRow = worksheet.lastRow.number;
+    for (let i = dataRowStart; i <= lastRow; i++) {
+        worksheet.getRow(i).eachCell(cell => {
+            cell.border = borderStyle;
+        });
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `每日結帳_${selectedDate}.xlsx`;
+    link.click();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
