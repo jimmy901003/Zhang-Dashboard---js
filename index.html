@@ -34,14 +34,18 @@
             <input type="radio" id="dateRange" name="dateType" value="日期範圍">
             <label for="dateRange">日期範圍</label>
         </div>
-
         <div id="datePickers">
             <input type="date" id="selectedDate">
-            <input type="date" id="startDate" style="display:none;">
+            <input type="date" id="startDate" style="display:none;">    
             <input type="date" id="endDate" style="display:none;">
         </div>
+        <h3>客戶名稱搜索</h3>
+        <div id="nameSearch">
+            <input type="text" id="customerNameInput" placeholder="輸入客戶名稱">
+            <button id="searchButton">搜尋</button>
+        </div>
 
-        <h3>訂單狀態篩選</h3>
+        <h3>訂單狀態篩選 <span id="filterLockStatus"></span></h3>
         <div id="orderStatusSelection">
             <input type="radio" id="allOrders" name="orderStatus" value="全部訂單" checked>
             <label for="allOrders">全部訂單</label>

@@ -1055,18 +1055,116 @@ body {
 
 #orderStatusSelection {
     position: relative;
-    padding-right: 30px; /* 為鎖定圖標留出空間 */
 }
 
-#orderStatusLock {
-    position: absolute;
-    right: 5px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #888;
-    font-size: 1.2em;
+
+/* 搜尋框容器樣式 */
+#nameSearch {
+    margin-top: 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
 }
+
+/* 輸入框樣式 */
+#customerNameInput {
+    flex-grow: 1;
+    width: 20%;
+    padding: 12px 15px;
+    font-size: 16px;
+    border: 2.45px solid #3498db;
+    border-right: none; /* 移除右邊框 */
+    border-radius: 10px 0 0 10px;
+    background-color: #fff;
+    color: #333;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+
+#customerNameInput:focus {
+    outline: none;
+    border-color: #2980b9;
+    box-shadow: 0 0 8px rgba(52, 152, 219, 0.5);
+}
+
+#customerNameInput::placeholder {
+    color: #bdc3c7;
+}
+
+/* 搜尋按鈕樣式 */
+#searchButton {
+    padding: 12.5px 10px;
+    font-size: 16px;
+    color: #fff;
+    background: linear-gradient(45deg, #3498db, #2980b9);
+    border: none;
+    border-radius: 0 10px 10px 0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-transform: uppercase;
+    font-weight: bold;
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+
+#searchButton:hover {
+    background: linear-gradient(45deg, #2980b9, #2471a3);
+    box-shadow: 0 6px 8px rgba(52, 152, 219, 0.3);
+}
+
+#searchButton:active {
+    transform: translateY(1px);
+    box-shadow: 0 2px 4px rgba(52, 152, 219, 0.2);
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+    #nameSearch {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    #customerNameInput {
+        border-radius: 30px;
+        margin-bottom: 10px;
+    }
+
+    #searchButton {
+        border-radius: 30px;
+    }
+
+    #customerNameInput,
+    #searchButton {
+        font-size: 14px;
+        padding: 10px 15px;
+    }
+}
+
+#filterLockStatus {
+    display: inline-block;
+    margin-left: 5px;
+    font-size: 0.8em;
+    vertical-align: middle;
+}
+
 
 #orderStatusSelection.locked {
-    opacity: 0.7;
+    position: relative;
+}
+
+
+.disabled {
+    opacity: 0.2;
+    cursor: not-allowed;
+}
+
+@keyframes highlightPulse {
+    0% { background-color: transparent; }
+    50% { background-color: rgba(255, 255, 0, 0.3); }
+    100% { background-color: transparent; }
+}
+
+.highlight {
+    animation: highlightPulse 1s ease-in-out;
 }

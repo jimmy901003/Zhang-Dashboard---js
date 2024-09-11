@@ -1,4 +1,3 @@
-
 // Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyDDEOqfcwmJiti_HZqOyri4qWUFWbtCUh0",
@@ -110,33 +109,106 @@ function updateDatePickers() {
     updateData();
 }
 
-// Update data and UI based on current filters
-function updateData() {
-    if (firestoreData.length > 0) {
-        processData();
-    } else {
-        fetchFirestoreData();
-    }
-}
 
 // Fetch data from Firestore
 async function fetchFirestoreData() {
     try {
         const snapshot = await db.collection('calculations').get();
         firestoreData = snapshot.docs.map(doc => ({
-            id: doc.id,  // 確保包含文檔 ID
+            id: doc.id,
             ...doc.data()
         }));
+
+        // 處理數據並更新 UI
         processData();
+
+        // 重置搜索輸入框
+        const customerNameInput = document.getElementById('customerNameInput');
+        if (customerNameInput) {
+            customerNameInput.value = '';
+        }
+
+        // 檢查確認的付款
+        if (!window.confirmedPaymentsChecked) {
+            const confirmedPayments = await checkForConfirmedPayments();
+            if (confirmedPayments.length > 0) {
+                confirmedPayments.forEach(payment => {
+                    showNotification(payment);
+                });
+            }
+            window.confirmedPaymentsChecked = true;
+        }
     } catch (error) {
         console.error("Error fetching Firestore data:", error);
-        orderList.innerHTML = '<p class="error">Error fetching data. Please try again later.</p>';
+        const orderList = document.getElementById('orderList');
+        if (orderList) {
+            orderList.innerHTML = '<p class="error">Error fetching data. Please try again later.</p>';
+        }
     }
 }
 
+// 添加輸入框的 Enter 鍵事件監聽器
+customerNameInput.addEventListener('keyup', function(event) {
+    if (event.key === 'Enter') {
+        performSearch();
+    }
+});
+
+// 執行搜索的函數
+async function performSearch() {
+    const searchTerm = customerNameInput.value.trim().toLowerCase();
+
+    if (searchTerm === '') {
+        // 如果搜索框為空，恢復顯示所有數據
+        fetchFirestoreData();
+    } else {
+        try {
+            // 從 Firestore 查詢所有匹配的客戶名稱
+            const querySnapshot = await db.collection('calculations')
+                .where('userName', '>=', searchTerm)
+                .where('userName', '<=', searchTerm + '\uf8ff')
+                .get();
+
+            const filteredData = [];
+            querySnapshot.forEach((doc) => {
+                filteredData.push({ id: doc.id, ...doc.data() });
+            });
+
+            // 使用過濾後的數據更新 UI
+            if (filteredData.length > 0) {
+                updateUI(filteredData);
+            } else {
+                alert('找不到相關客戶');
+            }
+        } catch (error) {
+            console.error("Error searching for customers:", error);
+        }
+    }
+}
+customerNameInput.addEventListener('input', () => {
+    const searchTerm = customerNameInput.value.trim();
+
+    if (searchTerm === '') {
+        // 如果搜索框被清空，重新加載所有數據
+        fetchFirestoreData();
+    }
+});
+
+
+
 // Process and flatten the data
 function processData() {
-    const flatData = firestoreData.map(item => {
+    const customerNameInput = document.getElementById('customerNameInput');
+    const searchTerm = customerNameInput ? customerNameInput.value.trim().toLowerCase() : '';
+    let dataToProcess = firestoreData;
+    
+    if (searchTerm !== '') {
+        dataToProcess = firestoreData.filter(item => 
+            item.userName && item.userName.toLowerCase().includes(searchTerm)
+        );
+    }
+
+    const flatData = dataToProcess.map(item => {
         const flatItem = {...item, ...item.hospitalMeals, ...item.ourMeals};
         
         paymentTypes.forEach(paymentType => {
@@ -149,7 +221,6 @@ function processData() {
         
         filteredPayments.forEach(payment => {
             if (paymentTypes.includes(payment.type)) {
-                // Handle payments
                 if (payment.type !== 'refundtoUser') {
                     flatItem[`${payment.type}_amount`] += payment.amount;
                 }
@@ -160,7 +231,6 @@ function processData() {
             }
         });
         
-        // Handle refunds separately
         const refunds = payments.filter(p => p.type === 'refundtoUser');
         flatItem['refundtoUser_amount'] = refunds.reduce((sum, r) => sum + r.amount, 0);
         flatItem['refundtoUser_info'] = refunds.map(r => `$ ${Math.abs(r.amount).toLocaleString()} (${r.timestamp.substr(0, 10)} ${paymentMethodsChinese[r.method] || r.method})`).join('\n');
@@ -170,6 +240,23 @@ function processData() {
     
     updateUI(flatData);
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const customerNameInput = document.getElementById('customerNameInput');
+    const searchButton = document.getElementById('searchButton');
+
+    if (customerNameInput && searchButton) {
+        searchButton.addEventListener('click', () => {
+            processData();
+        });
+
+        customerNameInput.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') {
+                processData();
+            }
+        });
+    }
+});
 
 // Update the UI with processed data
 
@@ -215,11 +302,20 @@ function isValidPaymentDate(dateStr) {
 }
 
 function filterPayments(row) {
+    const searchTerm = customerNameInput.value.trim().toLowerCase();
+    
+    // 如果搜索框有客戶名稱的搜索，則忽略日期篩選，只要匹配客戶就顯示
+    if (searchTerm !== '' && row.userName && row.userName.toLowerCase().includes(searchTerm)) {
+        return true;
+    }
+
+    // 如果沒有搜索客戶名稱，則進行日期篩選
     return paymentTypes.some(paymentType => {
         const payments = row[`${paymentType}_info`].split('\n');
         return payments.some(payment => payment && payment.includes('(') && isValidPaymentDate(payment.split('(')[1]));
     });
 }
+
 
 // Update total metrics
 function updateTotalMetrics(data) {
@@ -899,7 +995,12 @@ const toggleViewBtn = document.getElementById('toggleViewBtn');
 
 function toggleView() {
     isDetailedView = !isDetailedView;
-    updateData();
+    if (isDetailedView) {
+        updateDailySummary();
+    } else {
+        enableOrderStatusFilters();
+        updateData();
+    }
     toggleViewBtn.textContent = isDetailedView ? "切換為總覽顯示" : "切換為結帳檢視";
 }
 
@@ -911,12 +1012,13 @@ function updateDatePickers() {
         selectedDateInput.style.display = 'block';
         startDateInput.style.display = 'none';
         endDateInput.style.display = 'none';
-        toggleViewBtn.style.display = 'inline-block'; // 顯示切換按鈕
+        toggleViewBtn.style.display = 'inline-block';
     } else {
         selectedDateInput.style.display = 'none';
         startDateInput.style.display = 'block';
         endDateInput.style.display = 'block';
-        toggleViewBtn.style.display = 'none'; // 隱藏切換按鈕
+        toggleViewBtn.style.display = 'none';
+        enableOrderStatusFilters(); // 確保在日期範圍模式下啟用篩選
     }
     updateData();
 }
@@ -935,6 +1037,7 @@ async function updateData() {
 }
 
 async function updateDailySummary() {
+    disableOrderStatusFilters();
     const selectedDate = document.getElementById('selectedDate').value;
     if (!selectedDate) {
         alert('請選擇日期');
@@ -1117,6 +1220,35 @@ async function updateDailySummary() {
     // 在 updateDailySummary 函數的末尾添加
     document.getElementById('exportToExcel').style.display = 'inline-block';
 }
+
+function disableOrderStatusFilters() {
+    const orderStatusRadios = document.querySelectorAll('input[name="orderStatus"]');
+    orderStatusRadios.forEach(radio => {
+        radio.disabled = true;
+        radio.parentElement.classList.add('disabled');
+    });
+    const orderStatusSelection = document.getElementById('orderStatusSelection');
+    orderStatusSelection.classList.add('locked');
+    
+    // 更新鎖定狀態顯示
+    const filterLockStatus = document.getElementById('filterLockStatus');
+    filterLockStatus.innerHTML = '<i class="fas fa-lock" title="在每日總結視圖中不可用"></i>';
+}
+
+function enableOrderStatusFilters() {
+    const orderStatusRadios = document.querySelectorAll('input[name="orderStatus"]');
+    orderStatusRadios.forEach(radio => {
+        radio.disabled = false;
+        radio.parentElement.classList.remove('disabled');
+    });
+    const orderStatusSelection = document.getElementById('orderStatusSelection');
+    orderStatusSelection.classList.remove('locked');
+    
+    // 清除鎖定狀態顯示
+    const filterLockStatus = document.getElementById('filterLockStatus');
+    filterLockStatus.innerHTML = '';
+}
+
 
 // 使用事件委託來處理導出按鈕的點擊
 document.addEventListener('click', function(event) {
